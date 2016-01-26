@@ -1,0 +1,6 @@
+spiget
+requests==2.9.1
+sh==1.11
+wget==3.2
+httpie
+tqdm

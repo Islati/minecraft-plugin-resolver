@@ -88,7 +88,15 @@ def configure_plugin(resource, version, parent_folder, config_options=None, scri
         configuration_script = __get_configuring_script(resource, version)
 
     if configuration_script is None:
+        print("Unable to locate script for %s" % resource.plugin_name if isinstance(resource,
+                                                                                    BukkitResource) else resource.name)
         return False
+
+    if script is not None:
+        print("Loaded script from file %s" % script)
+    elif configuration_script is not None:
+        print("Found script for %s" % resource.plugin_name if isinstance(resource,
+                                                                         BukkitResource) else resource.name)
 
     configure_method = getattr(configuration_script, 'configure')
     if configure_method is None:

@@ -7,4 +7,4 @@ def is_url(url):
 
 
 def filename_from_url(url):
-    "%s%s" % os.path.splitext(os.path.basename(urlsplit(url).path))
+    return "%s%s" % os.path.splitext(os.path.basename(urlsplit(url).path))

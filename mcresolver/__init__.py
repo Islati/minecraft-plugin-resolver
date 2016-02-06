@@ -74,11 +74,9 @@ class MinecraftPluginResolver(object):
         self.latest = arguments.latest
         self.spigot_resources = {}
         self.bukkit_resources = {}
-        self.app_data_folder = os.path.expanduser(
-            "~/.mcresolver/" if arguments.datafolder is None else arguments.datafolder
-        )
+        self.app_data_folder = os.path.expanduser("~/.mcresolver/")
         self.scripts_folder = os.path.join(self.app_data_folder, "scripts")
-
+        self.__init_app_config()
         # Parse the yaml file holding all the requested plugins to resolve the plugins with further on.
         self.parse_yaml_file()
 
@@ -115,127 +113,135 @@ class MinecraftPluginResolver(object):
 
             # Now we collect all the resources requested on Bukkit,
             # and their desired versions.
-            bukkit_data = data_file['Bukkit']
+            if 'Bukkit' in data_file:
+                bukkit_data = data_file['Bukkit']
 
-            for plugin_name in bukkit_data.keys():
-                data = bukkit_data[plugin_name]
-                version = data['version']
-                configure_after_download = False
-                configure_options = {}
-                configure_script = None
-                kwargs = {}
-                if 'configure' in data.keys() and 'values' in data['options']:
-                    configure_after_download = True
-                    for option, value in data['configure']['options']:
-                        configure_options[option] = value
+                for plugin_name in bukkit_data.keys():
+                    data = bukkit_data[plugin_name]
+                    version = data['version']
+                    configure_after_download = False
+                    configure_options = {}
+                    configure_script = None
+                    kwargs = {}
 
-                if 'args' in data.keys():
-                    for key, value in data['args']:
-                        kwargs[key] = value
+                    if 'configure' in data.keys():
+                        if 'options' in data['configure']:
+                            configure_after_download = True
+                            for option, value in data['configure']['options'].items():
+                                configure_options[option] = value
 
-                if 'script' in data.keys():
-                    configure_script = data['script']
+                        if 'args' in data['configure'].keys():
+                            for key, value in data['configure']['args'].items():
+                                kwargs[key] = value
 
-                if isinstance(plugin_name, int) or plugin_name.isdigit():
-                    print("Invalid Bukkit plugin '%s', plugin name or slug (in plugins url) is required")
-                    continue
+                        if 'script' in data['configure'].keys():
+                            configure_script = data['configure']['script']
+                            print("Script found: %s" % configure_script)
 
-                try:
-                    bukkit_resource = BukkitResource.from_name(plugin_name)
-                except ValueError:
-                    print("Unable to retrieve Bukkit plugin %s (v. %s)" % (plugin_name, version))
-
-                if not bukkit_resource.has_version(version=version):
-                    if not self.latest:
-                        print("Unable to retrieve version %s for %s" % (version, plugin_name))
+                    if isinstance(plugin_name, int) or plugin_name.isdigit():
+                        print("Invalid Bukkit plugin '%s', plugin name or slug (in plugins url) is required")
                         continue
+
+                    try:
+                        bukkit_resource = BukkitResource.from_name(plugin_name)
+                    except ValueError:
+                        print("Unable to retrieve Bukkit plugin %s (v. %s)" % (plugin_name, version))
+
+                    if not bukkit_resource.has_version(version=version):
+                        if not self.latest:
+                            print("Unable to retrieve version %s for %s" % (version, plugin_name))
+                            continue
+                        else:
+                            self.bukkit_resources[plugin_name] = {
+                                'version': 'latest',
+                                'name': plugin_name,
+                                'resource': bukkit_resource,
+                                'configure': configure_after_download,
+                                'script': configure_script,
+                                'configure-options': configure_options,
+                                'kwargs': kwargs
+                            }
                     else:
                         self.bukkit_resources[plugin_name] = {
-                            'version': 'latest',
+                            'version': version,
+                            'name': plugin_name,
                             'resource': bukkit_resource,
                             'configure': configure_after_download,
                             'script': configure_script,
                             'configure-options': configure_options,
                             'kwargs': kwargs
                         }
+
+                    print("Bukkit information retrieved on %s (v: %s)" % (
+                        plugin_name, self.bukkit_resources[plugin_name]['version']))
+
+        # Go ahead and collect all the Spigot resources in the yml file
+        # and their desired versions (or latest)
+        if 'Spigot' in data_file:
+            spigot_plugins = data_file['Spigot']
+            for plugin_id in spigot_plugins.keys():
+                data = spigot_plugins[plugin_id]
+                spigot_resource = None
+                version = data['version']
+                name = data['name']
+                configure_after_download = False
+                configure_script = None
+                configure_options = {}
+                kwargs = {}
+                if 'configure' in data.keys():
+                    if 'options' in data['configure']:
+                        configure_after_download = True
+                        for option, value in data['configure']['options'].items():
+                            configure_options[option] = value
+
+                    if 'args' in data['configure'].keys():
+                        for key, value in data['configure']['args'].items():
+                            kwargs[key] = value
+
+                    if 'script' in data['configure'].keys():
+                        configure_script = data['configure']['script']
+                        print(configure_script)
+
+                if isinstance(plugin_id, int) or plugin_id.isdigit():
+                    spigot_resource = SpigotResource.from_id(plugin_id)
                 else:
-                    self.bukkit_resources[plugin_name] = {
+                    print(
+                        "Unable to retrieve Spigot plugin (%s) via its name... Potential feature in the future!" % name)
+                    continue
+
+                if spigot_resource is None:
+                    print("Invalid plugin %s (v: %s)" % (name, version))
+                    continue
+
+                if not spigot_resource.has_version(version=version):
+                    if not self.latest:
+                        print("Unable to retrieve version %s for %s" % (version, name))
+                        continue
+
+                    self.spigot_resources[plugin_id] = {
+                        'version': 'latest',
+                        'name': name,
+                        'resource': spigot_resource,
+                        'configure': configure_after_download,
+                        'script': configure_script,
+                        'configure-options': configure_options,
+                        'kwargs': kwargs
+                    }
+                else:
+                    self.spigot_resources[plugin_id] = {
                         'version': version,
-                        'resource': bukkit_resource,
+                        'name': name,
+                        'resource': spigot_resource,
                         'configure': configure_after_download,
                         'script': configure_script,
                         'configure-options': configure_options,
                         'kwargs': kwargs
                     }
 
-                print("Bukkit information retrieved on %s (v: %s)" % (
-                    plugin_name, self.bukkit_resources[plugin_name]['version']))
-
-        # Go ahead and collect all the Spigot resources in the yml file
-        # and their desired versions (or latest)
-        spigot_plugins = data_file['Spigot']
-        for plugin_id in spigot_plugins.keys():
-            spigot_resource = None
-
-            plugin_data = spigot_plugins[plugin_id]
-            version = plugin_data['version']
-            name = plugin_data['name']
-            configure_after_download = False
-            configure_script = None
-            configure_options = {}
-            kwargs = {}
-            if 'configure' in data.keys() and 'values' in data['configure']:
-                configure_after_download = True
-                for option, value in data['configure']['options']:
-                    configure_options[option] = value
-
-            if 'args' in data.keys():
-                for key, value in data['args']:
-                    kwargs[key] = value
-
-            if 'script' in data.keys():
-                configure_script = data['script']
-
-            if isinstance(plugin_id, int) or plugin_id.isdigit():
-                spigot_resource = SpigotResource.from_id(plugin_id)
-            else:
-                print(
-                    "Unable to retrieve Spigot plugin (%s) via its name... Potential feature in the future!" % name)
-                continue
-
-            if spigot_resource is None:
-                print("Invalid plugin %s (v: %s)" % (name, version))
-                continue
-
-            if not spigot_resource.has_version(version=version):
-                if not self.latest:
-                    print("Unable to retrieve version %s for %s" % (version, name))
-                    continue
-
-                self.spigot_resources[plugin_id] = {
-                    'version': 'latest',
-                    'name': name,
-                    'resource': spigot_resource,
-                    'configure': configure_after_download,
-                    'script': configure_script,
-                    'configure-options': configure_options,
-                    'kwargs': kwargs
-                }
-            else:
-                self.spigot_resources[plugin_id] = {
-                    'version': version,
-                    'name': name,
-                    'resource': spigot_resource,
-                    'configure': configure_after_download,
-                    'script': configure_script,
-                    'configure-options': configure_options,
-                    'kwargs': kwargs
-                }
-
-            if isinstance(plugin_id, int):
-                print("Spigot information retrieved on %s [id. %s] (v. %s)" % (name, plugin_id,
-                                                                               self.spigot_resources[plugin_id][
-                                                                                   'version']))
+                if isinstance(plugin_id, int):
+                    print("Spigot information retrieved on %s [id. %s] (v. %s)" % (name, plugin_id,
+                                                                                   self.spigot_resources[plugin_id][
+                                                                                       'version']))
 
     def generate_plugin_configuration(self):
         plugin_data_folder = os.path.join(self.folder, "plugins")
@@ -247,12 +253,13 @@ class MinecraftPluginResolver(object):
         for plugin, data in self.spigot_resources.items():
             configure = data['configure']
             values = data['configure-options']
-            script = data['script']
             kwargs = data['kwargs']
+            script = data['script']
             if not configure:
                 continue
 
             if script is not None:
+                print("Script for %s is %s" % (data['name'], script))
                 if is_url(script):
                     script = self.__save_plugin_config_script(script)
                 else:
@@ -279,6 +286,7 @@ class MinecraftPluginResolver(object):
                     script = self.__save_plugin_config_script(script)
                 else:
                     script = os.path.expanduser(data['script'])
+                print("Script is %s" % script)
 
             resource = data['resource']
             if configure_plugin(resource, data['version'], plugin_data_folder,

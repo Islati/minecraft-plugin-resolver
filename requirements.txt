@@ -3,4 +3,6 @@ tqdm==3.7.1
 cfscrape==1.4.3
 argparse==1.4.0
 PyYAML==3.11
+requests
+Jinja2==2.8
 git+https://github.com/TechnicalBro/pybukget.git

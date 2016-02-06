@@ -1,12 +1,13 @@
 import os
-from spiget import *
-from bukget import *
+from spiget import SpigotResource
+from bukget import BukkitResource
 from tqdm import tqdm
 import cfscrape
 import argparse
 import yaml
 import warnings
 import functools
+from minecraftpluginresolver.scripts import configure_plugin
 
 # todo implement downloading from BukkitDev and Jenkins / Link with versioning (Prefix with Bukkit:
 # Todo or prefix with Spigot:
@@ -83,6 +84,17 @@ class MinecraftPluginResolver(object):
             for plugin_name in bukkit_data.keys():
                 data = bukkit_data[plugin_name]
                 version = data['version']
+                configure_after_download = False
+                configure_options = {}
+                kwargs = {}
+                if 'configure' in data.keys() and 'values' in data['configure']:
+                    configure_after_download = True
+                    for option, value in data['configure']['values']:
+                        configure_options[option] = value
+
+                if 'args' in data.keys():
+                    for key, value in data['args']:
+                        kwargs[key] = value
 
                 if isinstance(plugin_name, int) or plugin_name.isdigit():
                     print("Invalid Bukkit plugin '%s', plugin name or slug (in plugins url) is required")
@@ -100,17 +112,22 @@ class MinecraftPluginResolver(object):
                     else:
                         self.bukkit_resources[plugin_name] = {
                             'version': 'latest',
-                            'resource': bukkit_resource
+                            'resource': bukkit_resource,
+                            'configure': configure_after_download,
+                            'configure-options': configure_options,
+                            'kwargs': kwargs
                         }
                 else:
                     self.bukkit_resources[plugin_name] = {
                         'version': version,
-                        'resource': bukkit_resource
+                        'resource': bukkit_resource,
+                        'configure': configure_after_download,
+                        'configure-options': configure_options,
+                        'kwargs': kwargs
                     }
 
                 print("Bukkit information retrieved on %s (v: %s)" % (
                     plugin_name, self.bukkit_resources[plugin_name]['version']))
-
 
         # Go ahead and collect all the Spigot resources in the yml file
         # and their desired versions (or latest)
@@ -121,6 +138,17 @@ class MinecraftPluginResolver(object):
             plugin_data = spigot_plugins[plugin_id]
             version = plugin_data['version']
             name = plugin_data['name']
+            configure_after_download = False
+            configure_options = {}
+            kwargs = {}
+            if 'configure' in data.keys() and 'values' in data['configure']:
+                configure_after_download = True
+                for option, value in data['configure']['values']:
+                    configure_options[option] = value
+
+            if 'args' in data.keys():
+                for key, value in data['args']:
+                    kwargs[key] = value
 
             if isinstance(plugin_id, int) or plugin_id.isdigit():
                 spigot_resource = SpigotResource.from_id(plugin_id)
@@ -142,18 +170,60 @@ class MinecraftPluginResolver(object):
                     'version': 'latest',
                     'name': name,
                     'resource': spigot_resource,
+                    'configure': configure_after_download,
+                    'configure-options': configure_options,
+                    'kwargs': kwargs
                 }
             else:
                 self.spigot_resources[plugin_id] = {
                     'version': version,
                     'name': name,
-                    'resource': spigot_resource
+                    'resource': spigot_resource,
+                    'configure': configure_after_download,
+                    'configure-options': configure_options,
+                    'kwargs': kwargs
                 }
 
             if isinstance(plugin_id, int):
                 print("Spigot information retrieved on %s [id. %s] (v. %s)" % (name, plugin_id,
                                                                                self.spigot_resources[plugin_id][
                                                                                    'version']))
+
+    def generate_plugin_configuration(self):
+        plugin_data_folder = os.path.join(self.folder, "plugins")
+        if not os.path.exists(plugin_data_folder):
+            os.makedirs(plugin_data_folder)
+
+        # Loop through all the available spigot resources and their data
+        # To see if they're desired to be configured!
+        for plugin, data in self.spigot_resources.items():
+            configure = data['configure']
+            values = data['configure-options']
+            kwargs = data['kwargs']
+            if not configure:
+                continue
+
+            resource = data['resource']
+            if configure_plugin(resource, data['version'], plugin_data_folder,
+                                config_options=values, **kwargs):
+                print("Configuration for %s has been created to your likings!" % data['name'])
+            else:
+                print("Failed to create configuration for %s." % data['name'])
+
+        for plugin, data in self.bukkit_resources.items():
+            configure = data['configure']
+            values = data['configure-options']
+            kwargs = data['kwargs']
+
+            if not configure:
+                continue
+
+            resource = data['resource']
+            if configure_plugin(resource, data['version'], plugin_data_folder,
+                                config_options=values, **kwargs):
+                print("Configuration for %s has been created to your likings!" % data['name'])
+            else:
+                print("Failed to create configuration for %s." % data['name'])
 
     def run(self):
         print("Collecting requested resources to run the Plugin Resolver by!")
@@ -204,6 +274,7 @@ class MinecraftPluginResolver(object):
                 except FileNotFoundError:
                     print("Unable to download resource %s from %s" % (resource.name, download_url))
 
+        self.generate_plugin_configuration()
         print("Finished Operations! Resolution complete!")
 
 

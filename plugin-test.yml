@@ -1,3 +1,6 @@
+#Location to store the 'plugins' folder and all the data / folders rendered via config
+plugin-data-folder: ~/spigot-resolver/
+
 #Spigot plugins require more information
 #Due to using a numeric identifier to retrieve the plugins
 #Though, it's not to much work to add all this,
@@ -18,7 +21,31 @@ Spigot:
   16758:
     name: Simple Play Time
     version: 1.3
+  15290:
+    name: Commons
+    version: 1.8.8-3
+    # If this options included, we'll attempt to generate the plugin config.
+    configure:
+      # If enabled is true, then we're going to search for a script.
+      enabled: true
+      # These are the options to render inside the template.
+      # Each template has variables based on the configuration for this plugin.
+      # If a specific variable is in the template, but not in the options
+      # We resort to using the default value (As specificied by the script to configure the plugin)
+      options:
+        mysql_enabled: true
+      # If args is included in the configure section, every option and value in
+      # The section will be included as KWARGS for the method used to configure the plugin.
+      # If there's no args path, then we're not going to pass kwargs
+      args:
+        # In this case, commons supports both XML and YML Configuration, so
+        # We include the config_type keyword argument to specify what type of configuration to generate.
+        config_type: yml
 
 Bukkit:
   vault:
     version: latest
+    configure:
+      enabled: true
+      options:
+        update_check: false

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import sys
-import minecraftpluginresolver
-from minecraftpluginresolver import parser, MinecraftPluginResolver
+import mcresolver
+from mcresolver import parser, MinecraftPluginResolver
 
 
 def main(args=None):
@@ -10,7 +10,7 @@ def main(args=None):
         args = sys.argv[1:]
 
     args = parser.parse_args()
-    minecraftpluginresolver.args = args
+    mcresolver.args = args
     app = MinecraftPluginResolver(args)
     app.run()
 

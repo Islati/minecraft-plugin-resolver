@@ -1,4 +1,4 @@
-from minecraftpluginresolver.scripts import *
+from mcresolver.scripts import *
 
 _plugin_versions_ = ['1.8.8-3']
 _plugin_id_ = "15290"  # Spigot resource ID
@@ -29,5 +29,5 @@ def configure(parent_folder, config_options={}, **kwargs):
     # Render the configuration of Commons from the url, with the options (and defaults included)
     commons_config = render_config_from_url(__config_template__ % config_type, options)
     # Lastly write the configuration to the file specified!
-    write_config_to_file(config_file, commons_config)
+    write_file(config_file, commons_config)
     print("Configuration for Commons 1.8.8-3 has been rendered!")

@@ -1,9 +1,12 @@
+from mcresolver.utils import is_url
+
 from bukget import BukkitResource
-import fnmatch
-from importlib.util import spec_from_file_location
-import os
 from spiget import SpigotResource
+from importlib.util import spec_from_file_location
 from jinja2 import Environment
+
+import fnmatch
+import os
 import requests
 import yaml
 
@@ -74,8 +77,15 @@ def get_configuration_defaults(url=None, file=None):
     return defaults
 
 
-def configure_plugin(resource, version, parent_folder, config_options=None, **kwargs):
-    configuration_script = __get_configuring_script(resource, version)
+def configure_plugin(resource, version, parent_folder, config_options=None, script=None, **kwargs):
+    configuration_script = None
+
+    if script is not None:
+        # Load the script from disk, doing what we need to do!
+        configuration_script = __load_configuring_script(script, resource, version)
+    else:
+        # Scan the scripts directory for the configuration script to handle the specified plugin.
+        configuration_script = __get_configuring_script(resource, version)
 
     if configuration_script is None:
         return False
@@ -93,9 +103,9 @@ def get_config_from_file(file):
         return config_file.read().replace('\n', '')
 
 
-def write_config_to_file(file, yaml):
-    with open(file, 'w') as yaml_file:
-        yaml_file.write(yaml)
+def write_file(file, data):
+    with open(file, 'w') as data_file:
+        data_file.write(data)
 
 
 def __get_plugin_identifier(resource):
@@ -111,51 +121,83 @@ def __get_plugin_identifier(resource):
     return plugin_identifier
 
 
-def __get_configuring_script(resource, version):
+def __load_configuring_script(script_location, resource, version):
+    """
+    Load a configuration script from a location on disk, and verify it's for the resource and version desired.
+    :param script_location: Location of the script (on disk) to check.
+    :param resource: Resource to verify the configuration script by;
+    We don't want to run a script that's supposed to configure another resource
+    :param version: Version of the resource to verify the script is supposed to configure.
+    :return: the Module loaded via the script if it's valid, otherwise none.
+    """
+    valid_script, config_module = __is_valid_configuration_script(script_location, resource, version)
+    if not valid_script:
+        return None
+
+    return config_module
+
+
+def __is_valid_configuration_script(script_location, resource, version):
+    """
+    Check whether or not a script is valid for the desired resource, and version.
+    :param script_location: Location (on disk) of where the script is located.
+    :param resource: Resource to check if the script is valid for.
+    :param version: version of the resource to check if the script is valid.
+    :return: True if the specified script is valid to configure the desired resource and version, false otherwise.
+    """
     plugin_identifier = str(__get_plugin_identifier(resource))
+
+    if "__init__" in script_location:
+        return False, None
+
+    config_module = __import_module_from_file(os.path.expanduser(script_location))
+
+    if config_module is None:
+        return False, None
+
+    if not hasattr(config_module, "configure"):
+        return False, None
+
+    if not hasattr(config_module, '_plugin_id_'):
+        return False, None
+
+    if not hasattr(config_module, '_plugin_versions_'):
+        return False, None
+
+    config_plugin_id = getattr(config_module, "_plugin_id_")
+    config_plugin_versions = getattr(config_module, "_plugin_versions_")
+
+    if config_plugin_id is None or config_plugin_versions is None:
+        return False, None
+
+    if plugin_identifier.lower() != config_plugin_id.lower():
+        return False, None
+
+    # Version checking in a list, that way a config script can support multiple versions
+    found_version = False
+
+    if "all" in config_plugin_versions:
+        found_version = True
+
+    if found_version is False:
+        for usable_version in config_plugin_versions:
+            if version.lower() in usable_version.lower():
+                found_version = True
+                break
+
+    if found_version:
+        return True, config_module
+    else:
+        return False, None
+
+
+def __get_configuring_script(resource, version):
     config_script_names = __get_files_recursive(__dirname, "*.py")
 
     for config_script in config_script_names:
-        if "__init__" in config_script:
-            continue
-
-        config_module = __import_module_from_file(config_script)
-
-        if config_module is None:
-            continue
-
-        if not hasattr(config_module, "configure"):
-            continue
-
-        if not hasattr(config_module, '_plugin_id_'):
-            continue
-
-        if not hasattr(config_module, '_plugin_versions_'):
-            continue
-
-        config_plugin_id = getattr(config_module, "_plugin_id_")
-        config_plugin_versions = getattr(config_module, "_plugin_versions_")
-
-        if config_plugin_id is None or config_plugin_versions is None:
-            continue
-
-        if plugin_identifier.lower() != config_plugin_id.lower():
-            continue
-
-        # Version checking in a list, that way a config script can support multiple versions
-        found_version = False
-
-        if "all" in config_plugin_versions:
-            found_version = True
-
-        if found_version is False:
-            for usable_version in config_plugin_versions:
-                if version.lower() in usable_version.lower():
-                    found_version = True
-                    break
-
-        if found_version:
-            return config_module
+        config_module = __load_configuring_script(config_script, resource, version)
+        if config_module is True:
+            return config_script
 
     return None
 

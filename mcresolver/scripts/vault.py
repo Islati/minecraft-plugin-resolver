@@ -1,4 +1,4 @@
-from minecraftpluginresolver.scripts import *
+from mcresolver.scripts import *
 
 _plugin_versions_ = ['all']
 _plugin_id_ = "vault"
@@ -21,4 +21,4 @@ def configure(parent_folder, config_options={}, **kwargs):
     options = merge_configuration_options(config_options, __config_defaults)
 
     yml_data = render_config_from_url(__config_template__, variables=options)
-    write_config_to_file(config_file, yml_data)
+    write_file(config_file, yml_data)

@@ -1,7 +1,7 @@
 from bukget import BukkitResource
 import os
 import shutil
-from minecraftpluginresolver.scripts import *
+from mcresolver.scripts import *
 
 
 def test_vault_156():

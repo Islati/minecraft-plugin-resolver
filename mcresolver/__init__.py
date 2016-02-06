@@ -1,13 +1,16 @@
-import os
 from spiget import SpigotResource
 from bukget import BukkitResource
+from mcresolver.scripts import configure_plugin, write_file
+from mcresolver.utils import is_url, filename_from_url
+
 from tqdm import tqdm
+import os
+import shutil
 import cfscrape
 import argparse
 import yaml
 import warnings
 import functools
-from minecraftpluginresolver.scripts import configure_plugin
 
 # todo implement downloading from BukkitDev and Jenkins / Link with versioning (Prefix with Bukkit:
 # Todo or prefix with Spigot:
@@ -25,6 +28,10 @@ parser.add_argument('-l', "-location", dest="location", metavar=('Local director
 parser.add_argument('-u', "--latest", dest="latest",
                     required=False, action="store_true",
                     help="By default, if the version included in your requirements file is invalid, use the latest available version of the resource")
+
+parser.add_argument('--datafolder', dest='datafolder', required=False,
+                    metavar=('Directory pointing to application config a and cache'),
+                    help="All of the apps configuration is loaded from a directory. This also allows us to store python scripts retrieved from a URL, into a folder cache, until the application has finished executing where cleanup is performed")
 
 args = None
 
@@ -67,9 +74,38 @@ class MinecraftPluginResolver(object):
         self.latest = arguments.latest
         self.spigot_resources = {}
         self.bukkit_resources = {}
+        self.app_data_folder = os.path.expanduser(
+            "~/.mcresolver/" if arguments.datafolder is None else arguments.datafolder
+        )
+        self.scripts_folder = os.path.join(self.app_data_folder, "scripts")
 
         # Parse the yaml file holding all the requested plugins to resolve the plugins with further on.
         self.parse_yaml_file()
+
+    def __init_app_config(self):
+        if not os.path.exists(self.app_data_folder):
+            os.makedirs(self.app_data_folder)
+
+        if not os.path.exists(self.scripts_folder):
+            os.makedirs(self.scripts_folder)
+
+    def __cleanup(self):
+        shutil.rmtree(self.scripts_folder)
+
+    def __save_plugin_config_script(self, script_url):
+        import requests
+
+        script_name = filename_from_url(script_url)
+        script_data = requests.get(script_url).text
+
+        script_loc = os.path.join(self.scripts_folder, script_name)
+
+        write_file(script_loc, script_data)
+
+        if not os.path.exists(script_loc):
+            raise FileNotFoundError("Unable to locate file %s after attempting to save it" % script_loc)
+
+        return script_loc
 
     def parse_yaml_file(self):
         resources = {}
@@ -86,15 +122,19 @@ class MinecraftPluginResolver(object):
                 version = data['version']
                 configure_after_download = False
                 configure_options = {}
+                configure_script = None
                 kwargs = {}
-                if 'configure' in data.keys() and 'values' in data['configure']:
+                if 'configure' in data.keys() and 'values' in data['options']:
                     configure_after_download = True
-                    for option, value in data['configure']['values']:
+                    for option, value in data['configure']['options']:
                         configure_options[option] = value
 
                 if 'args' in data.keys():
                     for key, value in data['args']:
                         kwargs[key] = value
+
+                if 'script' in data.keys():
+                    configure_script = data['script']
 
                 if isinstance(plugin_name, int) or plugin_name.isdigit():
                     print("Invalid Bukkit plugin '%s', plugin name or slug (in plugins url) is required")
@@ -114,6 +154,7 @@ class MinecraftPluginResolver(object):
                             'version': 'latest',
                             'resource': bukkit_resource,
                             'configure': configure_after_download,
+                            'script': configure_script,
                             'configure-options': configure_options,
                             'kwargs': kwargs
                         }
@@ -122,6 +163,7 @@ class MinecraftPluginResolver(object):
                         'version': version,
                         'resource': bukkit_resource,
                         'configure': configure_after_download,
+                        'script': configure_script,
                         'configure-options': configure_options,
                         'kwargs': kwargs
                     }
@@ -139,16 +181,20 @@ class MinecraftPluginResolver(object):
             version = plugin_data['version']
             name = plugin_data['name']
             configure_after_download = False
+            configure_script = None
             configure_options = {}
             kwargs = {}
             if 'configure' in data.keys() and 'values' in data['configure']:
                 configure_after_download = True
-                for option, value in data['configure']['values']:
+                for option, value in data['configure']['options']:
                     configure_options[option] = value
 
             if 'args' in data.keys():
                 for key, value in data['args']:
                     kwargs[key] = value
+
+            if 'script' in data.keys():
+                configure_script = data['script']
 
             if isinstance(plugin_id, int) or plugin_id.isdigit():
                 spigot_resource = SpigotResource.from_id(plugin_id)
@@ -171,6 +217,7 @@ class MinecraftPluginResolver(object):
                     'name': name,
                     'resource': spigot_resource,
                     'configure': configure_after_download,
+                    'script': configure_script,
                     'configure-options': configure_options,
                     'kwargs': kwargs
                 }
@@ -180,6 +227,7 @@ class MinecraftPluginResolver(object):
                     'name': name,
                     'resource': spigot_resource,
                     'configure': configure_after_download,
+                    'script': configure_script,
                     'configure-options': configure_options,
                     'kwargs': kwargs
                 }
@@ -199,13 +247,20 @@ class MinecraftPluginResolver(object):
         for plugin, data in self.spigot_resources.items():
             configure = data['configure']
             values = data['configure-options']
+            script = data['script']
             kwargs = data['kwargs']
             if not configure:
                 continue
 
+            if script is not None:
+                if is_url(script):
+                    script = self.__save_plugin_config_script(script)
+                else:
+                    script = os.path.expanduser(data['script'])
+
             resource = data['resource']
             if configure_plugin(resource, data['version'], plugin_data_folder,
-                                config_options=values, **kwargs):
+                                config_options=values, script=script, **kwargs):
                 print("Configuration for %s has been created to your likings!" % data['name'])
             else:
                 print("Failed to create configuration for %s." % data['name'])
@@ -213,14 +268,21 @@ class MinecraftPluginResolver(object):
         for plugin, data in self.bukkit_resources.items():
             configure = data['configure']
             values = data['configure-options']
+            script = data['script']
             kwargs = data['kwargs']
 
             if not configure:
                 continue
 
+            if script is not None:
+                if is_url(script):
+                    script = self.__save_plugin_config_script(script)
+                else:
+                    script = os.path.expanduser(data['script'])
+
             resource = data['resource']
             if configure_plugin(resource, data['version'], plugin_data_folder,
-                                config_options=values, **kwargs):
+                                config_options=values, script=script, **kwargs):
                 print("Configuration for %s has been created to your likings!" % data['name'])
             else:
                 print("Failed to create configuration for %s." % data['name'])
@@ -263,10 +325,6 @@ class MinecraftPluginResolver(object):
                 download_url = resource.get_download_link(version=version)
                 requested_version = resource.version if version == "latest" else version
 
-                if resource.external:
-                    print('Unavailable Feature: Collecting external resources; Will be completed in future versions')
-                    continue
-
                 file_name = "%s-%s%s" % (name, requested_version, resource.file_type)
                 try:
                     download(file_name, download_url, tokens, user_agent)
@@ -274,7 +332,12 @@ class MinecraftPluginResolver(object):
                 except FileNotFoundError:
                     print("Unable to download resource %s from %s" % (resource.name, download_url))
 
+        print("Beginning configuration generation!")
         self.generate_plugin_configuration()
+        # Cleanup the access data retrieved by the plugin!
+
+        print("Cleaning the trash!")
+        self.__cleanup()
         print("Finished Operations! Resolution complete!")
 
 

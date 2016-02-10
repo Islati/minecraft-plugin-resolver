@@ -114,6 +114,22 @@ class MinecraftPluginResolver(object):
                 self.generate_plugin_name, self.generated_store_location))
             sys.exit(0)
 
+        elif args.location is None and args.requirements is None:
+            #TODO show help for args
+            print(
+                "McResolver has 2 ways to run. Parsing a requirements file to generate plugins, or generating configuration templates & defaults for plugins")
+            print("This requires atleast one subset of options to be inputted when executing the program.")
+            print(
+                "Either pass -r (requirements-file) and -l (output location) or -g (config file), -gl (config template & default location) and -gpl (plugin name) to generate configuration files")
+            sys.exit(0)
+        elif args.location is not None and args.requirements is None:
+            print("To download and configure plugins both the -l and -r arguments are required.")
+            sys.exit(0)
+        elif args.requirements is not None and args.location is None:
+            print("To download and configure plugins both the -r and -l arguments are required.")
+            sys.exit(0)
+
+
         # Parse the yaml file holding all the requested plugins to resolve the plugins with further on.
         self.parse_config_file()
 

@@ -6,27 +6,37 @@ plugin-data-folder: ~/spigot-resolver/
 #Though, it's not to much work to add all this,
 #and saves you eons of time in the long run!
 Spigot:
-  15290:
-    name: Commons
-    version: 1.8.8-3
-    # If this options included, we'll attempt to generate the plugin config.
+#  15290:
+#    name: Commons
+#    version: 1.8.8-3
+#    # If this options included, we'll attempt to generate the plugin config.
+#    configure:
+#      # If enabled is true, then we're going to search for a script.
+#      enabled: true
+#      script: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Commons/1.8.8-3/commons_1.8.8-3.py
+#      # These are the options to render inside the template.
+#      # Each template has variables based on the configuration for this plugin.
+#      # If a specific variable is in the template, but not in the options
+#      # We resort to using the default value (As specificied by the script to configure the plugin)
+#      options:
+#        mysql_enabled: true
+#      # If args is included in the configure section, every option and value in
+#      # The section will be included as KWARGS for the method used to configure the plugin.
+#      # If there's no args path, then we're not going to pass kwargs
+#      args:
+#        # In this case, commons supports both XML and YML Configuration, so
+#        # We include the config_type keyword argument to specify what type of configuration to generate.
+#        config_type: xml
+  9089:
+    name: Essentials
+    version: 2.0.1-b267
     configure:
-      # If enabled is true, then we're going to search for a script.
       enabled: true
-      script: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Commons/1.8.8-3/commons_1.8.8-3.py
-      # These are the options to render inside the template.
-      # Each template has variables based on the configuration for this plugin.
-      # If a specific variable is in the template, but not in the options
-      # We resort to using the default value (As specificied by the script to configure the plugin)
+      script: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Essentials/2.0.1-b267/essentials-2.0.1-b267.py
       options:
-        mysql_enabled: true
-      # If args is included in the configure section, every option and value in
-      # The section will be included as KWARGS for the method used to configure the plugin.
-      # If there's no args path, then we're not going to pass kwargs
-      args:
-        # In this case, commons supports both XML and YML Configuration, so
-        # We include the config_type keyword argument to specify what type of configuration to generate.
-        config_type: yml
+        near_radius: 100
+        spawnmob_limit: 20
+        max_nick_length: 10
 
 #Bukkit:
 #  vault:

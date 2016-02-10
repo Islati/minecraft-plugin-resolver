@@ -5,6 +5,7 @@ from mcresolver import parser, MinecraftPluginResolver
 
 
 def main(args=None):
+
     """The main entry point for the Minecraft Plugin Resolver."""
     if args is None:
         args = sys.argv[1:]

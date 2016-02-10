@@ -1,8 +1,9 @@
 spiget==0.1.2
 tqdm==3.7.1
 cfscrape==1.4.3
-argparse==1.4.0
-PyYAML==3.11
+argparse
 requests
 Jinja2==2.8
+PyYaml
 git+https://github.com/TechnicalBro/pybukget.git
+git+https://github.com/TechnicalBro/yaml-bro.git

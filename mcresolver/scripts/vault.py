@@ -1,7 +1,7 @@
 from mcresolver.scripts import *
 
 _plugin_versions_ = ['all']
-_plugin_id_ = "vault"
+_plugin_id_ = "Vault"
 
 __config_template__ = "https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Vault/config.yml"
 

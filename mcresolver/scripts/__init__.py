@@ -1,4 +1,6 @@
-from mcresolver.utils import is_url
+from collections import OrderedDict
+import yaml
+from mcresolver.utils import is_url, filename_from_url
 
 from bukget import BukkitResource
 from spiget import SpigotResource
@@ -8,7 +10,8 @@ from jinja2 import Environment
 import fnmatch
 import os
 import requests
-import yaml
+
+# from yamlbro
 
 __dirname, __init_python_script = os.path.split(os.path.abspath(__file__))
 
@@ -63,7 +66,7 @@ def get_configuration_defaults(url=None, file=None):
     if url is None and file is None:
         raise ValueError("You must include either a url to retrieve the defaults from, or a file to read them from")
 
-    defaults = {}
+    defaults = OrderedDict()
     template_default_content = None
     if url is not None:
         template_default_content = get_config_from_url(url)
@@ -114,6 +117,25 @@ def get_config_from_file(file):
 def write_file(file, data):
     with open(file, 'w') as data_file:
         data_file.write(data)
+
+
+def save_plugin_config_script(script_folder, script_url):
+    import requests
+
+    if not os.path.exists(script_folder):
+        os.makedirs(script_folder)
+
+    script_name = filename_from_url(script_url)
+    script_data = requests.get(script_url).text
+
+    script_loc = os.path.join(script_folder, script_name)
+
+    write_file(script_loc, script_data)
+
+    if not os.path.exists(script_loc):
+        raise FileNotFoundError("Unable to locate file %s after attempting to save it" % script_loc)
+
+    return script_loc
 
 
 def __get_plugin_identifier(resource):
@@ -204,8 +226,8 @@ def __get_configuring_script(resource, version):
 
     for config_script in config_script_names:
         config_module = __load_configuring_script(config_script, resource, version)
-        if config_module is True:
-            return config_script
+        if config_module is not None:
+            return config_module
 
     return None
 

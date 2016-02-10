@@ -29,11 +29,19 @@ setup(
         'cfscrape==1.4.3',
         'argparse',
         'pyBukGet==1.0.2',
-        'PyYAML==3.11',
+        'PyYaml',
+        'yamlbro==0.0.1',
         'requests',
-        'Jinja2==2.8'
+        'Jinja2==2.8',
+    ],
+    setup_requires=[
+        'pytest-runner'
+    ],
+    tests_require=[
+        'pytest'
     ],
     dependency_links=[
         "https://github.com/TechnicalBro/pybukget/archive/1.0.2.zip#egg=pyBukGet-1.0.2",
+        'https://github.com/TechnicalBro/yaml-bro/archive/0.0.1.zip#egg=yamlbro-0.0.1'
     ]
 )

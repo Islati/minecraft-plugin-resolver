@@ -80,38 +80,83 @@ def get_configuration_defaults(url=None, file=None):
     return defaults
 
 
-def configure_plugin(resource, version, parent_folder, config_options=None, script=None, **kwargs):
-    configuration_script = None
-
+def configure_plugin(resource, version, parent_folder, defaults_file=None, template_file=None, config_options=None,
+                     script=None, script_folder=None, **kwargs):
+    resource_name = resource.plugin_name if isinstance(resource, BukkitResource) else resource.name
+    # First check if we're supposed to be configuring with a script.
     if script is not None:
-        # Load the script from disk, doing what we need to do!
-        configuration_script = __load_configuring_script(script, resource, version)
-    else:
-        # Scan the scripts directory for the configuration script to handle the specified plugin.
-        configuration_script = __get_configuring_script(resource, version)
+        # If they've passed a file to use specifically, then we're going to use that to configure the plugins.
+        if os.path.isfile(script) and os.path.exists(script):
+            configuration_script = __load_configuring_script(script, resource, version)
+        else:
+            # Otherwise Scan the scripts directory for the configuration script to handle the specified plugin.
+            configuration_script = __get_configuring_script(script_folder, resource, version)
 
-    if configuration_script is None:
-        print("Unable to locate script for %s" % resource.plugin_name if isinstance(resource,
-                                                                                    BukkitResource) else resource.name)
+        if configuration_script is None:
+            print("Unable to locate script for %s" % resource_name)
+            return False
+        else:
+            print("Found script for %s" % resource_name)
+
+        configure_method = getattr(configuration_script, 'configure')
+        if configure_method is None:
+            raise AttributeError("Unable to find 'configure' method in configuration script")
+
+        configure_method(parent_folder, config_options=config_options, **kwargs)
+        return True
+
+    if defaults_file is None or template_file is None:
+        print("Unable to configure %s without a script, or templates & default folder" % resource_name)
         return False
 
-    if script is not None:
-        print("Loaded script from file %s" % script)
-    elif configuration_script is not None:
-        print("Found script for %s" % resource.plugin_name if isinstance(resource,
-                                                                         BukkitResource) else resource.name)
+    plugin_folder = os.path.expanduser(os.path.join(parent_folder, kwargs.get('plugin_folder', resource_name)))
 
-    configure_method = getattr(configuration_script, 'configure')
-    if configure_method is None:
-        raise AttributeError("Unable to find 'configure' method in configuration script")
+    if not os.path.exists(plugin_folder):
+        os.makedirs(plugin_folder)
 
-    configure_method(parent_folder, config_options=config_options, **kwargs)
+    # Get the default configuration values for Commons, incase some aren't present in the options.
+    try:
+        if is_url(defaults_file):
+            defaults = get_configuration_defaults(url=defaults_file)
+        else:
+            if not os.path.exists(defaults_file):
+                print("Unable to locate default variables file for %s %s" % (resource_name, defaults_file))
+                return False
+
+            defaults = get_configuration_defaults(file=defaults_file)
+    except:
+        print("Unable to locate default variables file for %s %s" % (resource_name, defaults_file))
+        return False
+
+    # Create a full dictionary of all the options required to render the template, merging
+    # in the missing values from the default config.
+    options = merge_configuration_options(config_options, defaults)
+
+    # todo implement config file name in options.
+    config_file = os.path.join(plugin_folder, 'config.yml')
+
+    # Render the configuration of the url, with the options (and defaults included)
+    if is_url(template_file):
+        plugin_config = render_config_from_url(template_file, options)
+    else:
+        if not os.path.exists(template_file):
+            print("Unable to locate template file for %s %s" % (resource_name, defaults_file))
+            return False
+        plugin_config = render_config_from_string(get_config_from_file(template_file), options)
+
+
+    # Lastly write the configuration to the file specified!
+    write_file(config_file, plugin_config)
+    print("Configuration for {plugin} ({version}) has been rendered!".format(resource_name, version))
     return True
 
 
-def get_config_from_file(file):
+def get_config_from_file(file, trim_newlines=True):
     with open(file, 'r') as config_file:
-        return config_file.read().replace('\n', '')
+        data = config_file.read()
+        if trim_newlines:
+            data = data.replace('\n', '')
+        return data
 
 
 def write_file(file, data):
@@ -221,8 +266,8 @@ def __is_valid_configuration_script(script_location, resource, version):
         return False, None
 
 
-def __get_configuring_script(resource, version):
-    config_script_names = __get_files_recursive(__dirname, "*.py")
+def __get_configuring_script(scripts_folder, resource, version):
+    config_script_names = __get_files_recursive(scripts_folder, "*.py")
 
     for config_script in config_script_names:
         config_module = __load_configuring_script(config_script, resource, version)

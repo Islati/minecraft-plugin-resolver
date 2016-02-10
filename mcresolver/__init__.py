@@ -1,3 +1,4 @@
+import textwrap
 from collections import OrderedDict
 from spiget import SpigotResource
 from bukget import BukkitResource
@@ -26,13 +27,13 @@ install_patch()
 # todo or prefix with Link: <url>==<version-to-save-as>
 
 parser = argparse.ArgumentParser(description="Configure the options to run the Mineraft Plugin Resolver by.")
-parser.add_argument("-r", "-requirements", dest="requirements", metavar=('File containing plugin requirements'),
+parser.add_argument("-r", "-requirements", dest="requirements", metavar=('*.yml Requirements File'),
                     required=False,
                     help="Requirements file used to determined the plugins and their desired versions")
 
-parser.add_argument('-l', "-location", dest="location", metavar=('Local directory to store the plugins retrieved'),
+parser.add_argument('-l', "-location", dest="location", metavar=('FOLDER'),
                     required=False,
-                    help="Location to store the downloaded plugins in. If it doesn't exist, creation of it will be attempted")
+                    help="Location to store the plugins, or generated configuration in. If it doesn't exist, creation of it will be attempted")
 
 parser.add_argument('-u', "--latest", dest="latest",
                     required=False, action="store_true",
@@ -41,12 +42,8 @@ parser.add_argument('-u', "--latest", dest="latest",
 parser.add_argument('-g', '--generate', dest='generate', required=False, action='store',
                     help='Take a configuration file and attempt to generate a template, and defaults file from it')
 
-parser.add_argument('-gpl', '--gplugin', dest='genplugin', required=False, action='store',
-                    help='Coupled with use of generate, and genlocation, its the name to assign config templates on generation')
-
-parser.add_argument('-gl', '--genlocation', dest='genlocation', required=False, action='store',
-                    help="Coupled for use with the -g (--generate) flag, this argument specifies a location to store the generated files in")
-
+parser.add_argument('-pl', '--plugin', dest='genplugin', required=False, action='store',
+                    help='Coupled with use of generate, its the name to assign config templates on generation')
 args = None
 
 
@@ -84,51 +81,80 @@ class ChangeDir:
 class MinecraftPluginResolver(object):
     def __init__(self, arguments):
         self.requirements_file = arguments.requirements
-        self.folder = arguments.location
-        self.latest = arguments.latest
-        self.spigot_resources = {}
-        self.bukkit_resources = {}
+        self.output_folder = arguments.location
+        self.retrieve_latest_on_version_error = arguments.latest
+        self.spigot_resources = OrderedDict()
+        self.bukkit_resources = OrderedDict()
+
+        # Application specific folders; For storing scripts, and other files.
         self.app_data_folder = os.path.expanduser("~/.mcresolver/")
         self.scripts_folder = os.path.join(self.app_data_folder, "scripts")
 
+        # Used to handle the generation portion of mcresolver. Taking a configuration file
+        # And generating a template, and set of default values for the template.
         self.generate_base_config_file = None if args.generate is None else os.path.expanduser(args.generate)
-        self.generated_store_location = None if args.genlocation is None else os.path.expanduser(args.genlocation)
         self.generate_plugin_name = None if args.genplugin is None else args.genplugin
 
+        # Initialize the mcresolver configuration folders and files.
         self.__init_app_config()
-        if args.generate is not None and (args.genlocation is None or args.genplugin is None):
-            print(
-                "The -g (--generate) flag require the -gl (--genlocation), and -gpl (--genplugin) flag for execution.")
-            sys.exit(0)
 
-        elif args.genlocation is not None and (args.generate is None or args.genplugin is None):
-            print(
-                "The -gl (--genlocation) flag required the -g (--generate), and -gpl (--genplugin) flag for execution")
-            sys.exit(0)
-        elif args.genlocation is not None and args.generate is not None and args.genplugin is not None:
-            print("Generating config template and defaults for plugin '%s' from file %s" % (
-                self.generate_plugin_name, self.generate_base_config_file))
+        if args.generate is not None and args.genplugin is not None:
+            if self.output_folder is None:
+                print(
+                    "To generate plugin configuration, you also require the '-l [Folder]' flag, specifying where to save the generated configuration")
+                parser.print_help()
+                sys.exit(0)
 
             self.generate_templates()
             print("Generated config templates for %s and saved them to %s" % (
-                self.generate_plugin_name, self.generated_store_location))
+                self.generate_plugin_name, self.output_folder))
             sys.exit(0)
 
-        elif args.location is None and args.requirements is None:
-            #TODO show help for args
-            print(
-                "McResolver has 2 ways to run. Parsing a requirements file to generate plugins, or generating configuration templates & defaults for plugins")
-            print("This requires atleast one subset of options to be inputted when executing the program.")
-            print(
-                "Either pass -r (requirements-file) and -l (output location) or -g (config file), -gl (config template & default location) and -gpl (plugin name) to generate configuration files")
-            sys.exit(0)
-        elif args.location is not None and args.requirements is None:
-            print("To download and configure plugins both the -l and -r arguments are required.")
-            sys.exit(0)
-        elif args.requirements is not None and args.location is None:
-            print("To download and configure plugins both the -r and -l arguments are required.")
-            sys.exit(0)
+        elif args.requirements is None:
+            print(textwrap.dedent("""\n
+            ==================================
+                McResolver Execution Error
+            ==================================
 
+                McResolver has limited ways it can be utilized, each of which
+                with their own required options, variables, functionality and
+                purpose.
+
+
+                Retrieve and Configure Plugins
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+                    Download plugins from Bukkit and Spigot, then automatically configure
+                    them to your likings.
+
+                    This option requires you to use the '-r' or '--requirements' flag, to pass
+                    a yml based file outlining the location to store your plugins and config (locally),
+                    what plugins to download, and what options to pass to the configuration template, or script,
+                    to generate the plugins config.
+
+
+                Generate Configuration Files
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+                    Using fresh plugin configuration, or previously configured plugins you
+                    pass a few flags (-g [config file], -gl [store location], and -gpl [Plugin name])
+                    then McResolver will generate a Jinja2 Template, along with defaults file for you to
+                    configure your plugins by.
+
+                    The template will hold the structure of the configuration file, while the defaults file
+                    is used to replace all variables that aren't defined when executing the 'Retrieve and Configure'
+                    method described above.
+
+                    This way, if you wish to deploy the same configuration for every plugin install, or have some deviate
+                    in different ways you can do so, modifying only the values you wish to modify, while keeping all the
+                    others exactly how you like them!
+
+
+                Please use one of the methods listed above, and their required options when executing McResolver.
+            """).format())
+
+            parser.print_help()
+            sys.exit(0)
 
         # Parse the yaml file holding all the requested plugins to resolve the plugins with further on.
         self.parse_config_file()
@@ -140,11 +166,12 @@ class MinecraftPluginResolver(object):
         if not os.path.exists(self.scripts_folder):
             os.makedirs(self.scripts_folder)
 
-        if self.generated_store_location is not None and not os.path.exists(self.generated_store_location):
-            os.makedirs(self.generated_store_location)
+        if self.output_folder is not None and not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
 
     def __cleanup(self):
-        shutil.rmtree(self.scripts_folder)
+        # shutil.rmtree(self.scripts_folder)
+        pass
 
     def generate_templates(self):
         def get_name_from_key(key):
@@ -288,23 +315,21 @@ class MinecraftPluginResolver(object):
         # Next up, we need to remove all the 'none' values inside of this file, as it's really not a good idea
         # to have yaml parse "none" values... It'd return a string. So we make them blank instead.
         defaults_file_contents = defaults_file_contents.replace(": none", ": ")
-        write_file(os.path.join(self.generated_store_location, '%s-template.yml' % self.generate_plugin_name),
+        write_file(os.path.join(self.output_folder, '%s-template.yml' % self.generate_plugin_name),
                    config_template)
-        write_file(os.path.join(self.generated_store_location, '%s-defaults.yml' % self.generate_plugin_name),
+        write_file(os.path.join(self.output_folder, '%s-defaults.yml' % self.generate_plugin_name),
                    defaults_file_contents)
 
-    def __rescurse_structure_collect_results(self, data, default_dict, template_dict):
-        # TODO Fill
-        pass
-
     def parse_config_file(self):
-        resources = {}
-
         config = yamlbro.load_yaml(self.requirements_file)
 
+        if 'target-folder' in config.keys() and self.output_folder is None:
+            print("Info: Files and Configuration will be stored in %s" % self.output_folder)
+            self.output_folder = os.path.expanduser(config['target-folder'])
 
-        # Now we collect all the resources requested on Bukkit,
-        # and their desired versions.
+            if not os.path.exists(self.output_folder):
+                os.makedirs(self.output_folder)
+
         if 'Bukkit' in config.keys():
             bukkit_data = config['Bukkit']
 
@@ -314,6 +339,9 @@ class MinecraftPluginResolver(object):
                 configure_after_download = False
                 configure_options = {}
                 configure_script = None
+                template_file = None
+                defaults_file = None
+                plugin_folder = None
                 kwargs = {}
 
                 if 'configure' in data.keys():
@@ -330,6 +358,42 @@ class MinecraftPluginResolver(object):
                         configure_script = data['configure']['script']
                         print("Script found: %s" % configure_script)
 
+                    if 'template' in data['configure'].keys():
+                        template_file = data['configure']['template']
+
+                    if 'defaults' in data['configure'].keys():
+                        defaults_file = data['configure']['defaults']
+
+                    if 'plugin-data-folder' in data['configure'].keys():
+                        plugin_folder = data['configure']['plugin-data-folder']
+
+                    if (template_file is not None and defaults_file is None) or (
+                                    defaults_file is not None and template_file is None):
+                        template_file = None
+                        defaults_file = None
+                        configure_after_download = False
+
+                        print(textwrap.dedent("""\n
+                            +==================================================================+
+                                    Configuration Error for {name} ({version})
+                            +==================================================================+
+
+                                Generating a plugins configuration file via template & default configuration
+                                requires the 'template', 'plugin-data-folder', and 'defaults' node to be present, and valid
+                                inside your requirements file ({configuration}).
+
+                                Using one without the others nulls the functionality, as a template has placeholders
+                                for your config data, and the defaults file fills in the blanks where you
+                                have not specified values. Using either without a plugin data folder doesn't make sense,
+                                as you'd want to keep the template and defaults once it's generated.
+
+                                McResolver will continue to download these plugins, though configuration cannot happen
+                                unless you provide a template, plugin data folder, and defaults file, or a script that
+                                handles the configuration.
+
+                            +==================================================================+
+                            """).format(name=plugin_name, version=version, configuration=self.requirements_file))
+
                 if isinstance(plugin_name, int) or plugin_name.isdigit():
                     print("Invalid Bukkit plugin '%s', plugin name or slug (in plugins url) is required")
                     continue
@@ -340,7 +404,7 @@ class MinecraftPluginResolver(object):
                     print("Unable to retrieve Bukkit plugin %s (v. %s)" % (plugin_name, version))
 
                 if not bukkit_resource.has_version(version=version):
-                    if not self.latest:
+                    if not self.retrieve_latest_on_version_error:
                         print("Unable to retrieve version %s for %s" % (version, plugin_name))
                         continue
                     else:
@@ -351,7 +415,10 @@ class MinecraftPluginResolver(object):
                             'configure': configure_after_download,
                             'script': configure_script,
                             'configure-options': configure_options,
-                            'kwargs': kwargs
+                            'kwargs': kwargs,
+                            'template': template_file,
+                            'defaults': defaults_file,
+                            'plugin-folder': plugin_folder,
                         }
                 else:
                     self.bukkit_resources[plugin_name] = {
@@ -361,7 +428,11 @@ class MinecraftPluginResolver(object):
                         'configure': configure_after_download,
                         'script': configure_script,
                         'configure-options': configure_options,
-                        'kwargs': kwargs
+                        'kwargs': kwargs,
+                        'template': template_file,
+                        'defaults': defaults_file,
+                        'plugin-folder': plugin_folder,
+
                     }
 
                 print("Bukkit information retrieved on %s (v: %s)" % (
@@ -379,6 +450,9 @@ class MinecraftPluginResolver(object):
                 configure_after_download = False
                 configure_script = None
                 configure_options = {}
+                template_file = None
+                defaults_file = None
+                plugin_folder = None
                 kwargs = {}
                 if 'configure' in data.keys():
                     if 'options' in data['configure']:
@@ -392,7 +466,41 @@ class MinecraftPluginResolver(object):
 
                     if 'script' in data['configure'].keys():
                         configure_script = data['configure']['script']
-                        print(configure_script)
+
+                    if 'template' in data['configure'].keys():
+                        template_file = data['configure']['template']
+
+                    if 'defaults' in data['configure'].keys():
+                        defaults_file = data['configure']['defaults']
+
+                    if 'plugin-data-folder' in data['configure'].keys():
+                        plugin_folder = data['configure']['plugin-data-folder']
+
+                    if (template_file is not None and defaults_file is None) or (
+                                    defaults_file is not None and template_file is None):
+                        template_file = None
+                        defaults_file = None
+                        configure_after_download = False
+                        print(textwrap.dedent("""\n
+                            +==================================================================+
+                                    Configuration Error for {name} ({version})
+                            +==================================================================+
+
+                                Generating a plugins configuration file via template & default configuration
+                                requires the 'template', 'plugin-data-folder', and 'defaults' node to be present, and valid
+                                inside your requirements file ({configuration}).
+
+                                Using one without the others nulls the functionality, as a template has placeholders
+                                for your config data, and the defaults file fills in the blanks where you
+                                have not specified values. Using either without a plugin data folder doesn't make sense,
+                                as you'd want to keep the template and defaults once it's generated.
+
+                                McResolver will continue to download these plugins, though configuration cannot happen
+                                unless you provide a template, plugin data folder, and defaults file, or a script that
+                                handles the configuration.
+
+                            +==================================================================+
+                            """).format(name=name, version=version, configuration=self.requirements_file))
 
                 if isinstance(plugin_id, int) or plugin_id.isdigit():
                     spigot_resource = SpigotResource.from_id(plugin_id)
@@ -406,7 +514,7 @@ class MinecraftPluginResolver(object):
                     continue
 
                 if not spigot_resource.has_version(version=version):
-                    if not self.latest:
+                    if not self.retrieve_latest_on_version_error:
                         print("Unable to retrieve version %s for %s" % (version, name))
                         continue
 
@@ -417,7 +525,11 @@ class MinecraftPluginResolver(object):
                         'configure': configure_after_download,
                         'script': configure_script,
                         'configure-options': configure_options,
-                        'kwargs': kwargs
+                        'kwargs': kwargs,
+                        'template': template_file,
+                        'defaults': defaults_file,
+                        'plugin-folder': plugin_folder,
+
                     }
                 else:
                     self.spigot_resources[plugin_id] = {
@@ -427,7 +539,10 @@ class MinecraftPluginResolver(object):
                         'configure': configure_after_download,
                         'script': configure_script,
                         'configure-options': configure_options,
-                        'kwargs': kwargs
+                        'kwargs': kwargs,
+                        'template': template_file,
+                        'defaults': defaults_file,
+                        'plugin-folder': plugin_folder,
                     }
 
                 if isinstance(plugin_id, int):
@@ -436,9 +551,9 @@ class MinecraftPluginResolver(object):
                                                                                        'version']))
 
     def generate_plugin_configuration(self):
-        plugin_data_folder = os.path.join(self.folder, "plugins")
-        if not os.path.exists(plugin_data_folder):
-            os.makedirs(plugin_data_folder)
+        plugins_folder = os.path.join(self.output_folder, "plugins")
+        if not os.path.exists(plugins_folder):
+            os.makedirs(plugins_folder)
 
         # Loop through all the available spigot resources and their data
         # To see if they're desired to be configured!
@@ -447,8 +562,15 @@ class MinecraftPluginResolver(object):
             values = data['configure-options']
             kwargs = data['kwargs']
             script = data['script']
+            template = data['template']
+            defaults = data['defaults']
+            data_folder = data['plugin-folder']
+
             if not configure:
                 continue
+
+            if data_folder is not None:
+                kwargs['plugin_folder'] = data_folder
 
             if script is not None:
                 print("Script for %s is %s" % (data['name'], script))
@@ -458,9 +580,9 @@ class MinecraftPluginResolver(object):
                     script = os.path.expanduser(data['script'])
 
             resource = data['resource']
-            if configure_plugin(resource, data['version'], plugin_data_folder,
-                                config_options=values, script=script, **kwargs):
-                print("Configuration for %s has been created to your likings!" % data['name'])
+            if configure_plugin(resource, data['version'], plugins_folder,
+                                config_options=values, script=script, script_folder=self.scripts_folder, **kwargs):
+                print("Configuration for %s has been generated!" % data['name'])
             else:
                 print("Failed to create configuration for %s." % data['name'])
 
@@ -469,6 +591,10 @@ class MinecraftPluginResolver(object):
             values = data['configure-options']
             script = data['script']
             kwargs = data['kwargs']
+            data_folder = data['plugin-folder']
+
+            if data_folder is not None:
+                kwargs['plugin_folder'] = data_folder
 
             if not configure:
                 continue
@@ -481,24 +607,24 @@ class MinecraftPluginResolver(object):
                 print("Script is %s" % script)
 
             resource = data['resource']
-            if configure_plugin(resource, data['version'], plugin_data_folder,
-                                config_options=values, script=script, **kwargs):
+            if configure_plugin(resource, data['version'], plugins_folder,
+                                config_options=values, script=script, script_folder=self.scripts_folder, **kwargs):
                 print("Configuration for %s has been created to your likings!" % data['name'])
             else:
                 print("Failed to create configuration for %s." % data['name'])
 
     def run(self):
         print("Collecting requested resources to run the Plugin Resolver by!")
-        if not os.path.exists(os.path.expanduser(self.folder)):
+        if not os.path.exists(os.path.expanduser(self.output_folder)):
             try:
-                os.makedirs(os.path.expanduser(self.folder))
+                os.makedirs(os.path.expanduser(self.output_folder))
             except OSError:
-                print("Unable to create directory: %s" % self.folder)
+                print("Unable to create directory: %s" % self.output_folder)
                 return
 
         # Change the working directory to the requested
         # Folder to save plugins in.
-        with ChangeDir(os.path.expanduser(self.folder)):
+        with ChangeDir(os.path.expanduser(self.output_folder)):
             print("Loading Resource information")
             tokens, user_agent = cfscrape.get_tokens('http://www.spigotmc.org')
             # First, iterate through all the bukkit plugins to resolve

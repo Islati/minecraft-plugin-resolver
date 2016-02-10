@@ -1,5 +1,7 @@
 #Location to store the 'plugins' folder and all the data / folders rendered via config
-plugin-data-folder: ~/spigot-resolver/
+target-folder: ~/spigot-resolver/
+
+configuration-scripts-folder: ~/spigot-resolver/scripts/
 
 #Spigot plugins require more information
 #Due to using a numeric identifier to retrieve the plugins
@@ -32,7 +34,9 @@ Spigot:
     version: 2.0.1-b267
     configure:
       enabled: true
-      script: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Essentials/2.0.1-b267/essentials-2.0.1-b267.py
+      template: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Essentials/2.0.1-b267/essentials-template.yml
+      defaults: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Essentials/2.0.1-b267/essentials-defaults.yml
+      plugin-data-folder: Essentials
       options:
         near_radius: 100
         spawnmob_limit: 20

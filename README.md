@@ -1,4 +1,4 @@
-Minecraft Plugin Resolver 🧩
+Plugin Resolver 🧩
 ===
 
 ## Using McResolver CLI _(.yml requirements file)_

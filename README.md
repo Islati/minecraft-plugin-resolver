@@ -1,20 +1,22 @@
 Minecraft Plugin Resolver 🧩
 ===
 
-Download & Configure plugins to automate your Minecraft server deployment 🔧
+## Using McResolver CLI _(.yml requirements file)_
+```
+$ python -m mcresolver --requirements/-r <config-file> --location/-l <loc_to_store_plugins> (--latest/-u)
+```
 
+## Generating configuration templates from existing config.yml
+```
+$ python -m mcresolver --generate/-g <config-file> --plugin <name>
+```
 
+[(Example) Commons Configuration](https://github.com/Islati/minecraft-plugin-config-templates/tree/master/Commons/1.8.8-3)
 
-An example of this is Commons, the plugin framework also hosted on my GitHub account.
-Commons supports multiple types of configuration, many options in the config, and
-requires a few other files to function. (data-option.txt)
-
-Though in simple use cases, there should be nodes available to script the configuration
-generation simply though yml.
-
+*Download & Configure plugins automatically 🔧*
 An example of this is presented below, for the Bukkit plugin 'Vault', the economy API.
 
-   Vault: (config.yml)
+###Configuration example
 ```yaml
 
     Bukkit:
@@ -24,15 +26,22 @@ An example of this is presented below, for the Bukkit plugin 'Vault', the econom
           enabled: true
           folder: Vault
           file: config.yml
-          config-template: https://raw.githubusercontent.com/TechnicalBro/minecraft-plugin-config-templates/master/Vault/config.yml
-          config-defaults:
+          #Name of the plugin data folder
+          plugin-data-folder: Vault
+          # Template link for the processor
+          template: https://raw.githubusercontent.com/Islati/minecraft-plugin-config-templates/master/Vault/config.yml
+          # Script to create the configuration.
+          script: https://github.com/Islati/minecraft-plugin-config-templates/blob/master/Vault/vault_all.py
+          # Defaults file gives us values to assign to variables
+          defaults: https://github.com/Islati/minecraft-plugin-config-templates/blob/master/Vault/defaults.yml
+          # This is vaults config.yml file here, the options are for the config file.
           options:
             update_check: true
 ```
 
-In the above example, we're generating the folder where Vault stores its configuration
-('Vault', inside the plugins folder; 'plugins/Vault'), along with a 'config.yml' file
-to store the configuration of vault, inside the created folder.
+👉 When we run this:
+* ✅ We generate the config folder for vault inside the plugins folder (_'plugins/Vault/'_)
+* ✅ Inside the created folder, we generate the _'config.yml'_ file using a mix of `defaults.yml` and the `config.yml` _template_.
 
 The template option is used to render the configuration, where each of the keys and values inside
 of the options node is passed to the template to fill it and generate a full config for the plugin.
@@ -42,13 +51,7 @@ rendered to 'update-check: true' in this case, as the value under options is set
 
 _It's really quite simple._
 
-The next option, is to provide the ability to execute a python script that handles the configuration
-of plugins. With a simple, yet robust set of features inside the 'scripts' package along with the power
-of Python, the possibilities are endless. The only thing that's required is a specific (base) structure
-for the script is present, and the rest is up to the user!
-
-Here's an example of what the configuration script for Commons would look like.
-
+## Example Python script to generate `config.yml` for [Commons](https://github.com/Islati/Commons) 🥽
 ```python
     from minecraftpluginresolver.scripts import *
 
@@ -88,13 +91,15 @@ There are 3 required components for a configuration script. If you notice in the
 
 ```python
 
+    # Which versions of the plugin this script can configure.
     _plugin_versions_ = ['1.8.8-3']
+    # Identifier of the plugin. whether it's the name (bukkit) or id (spigot)
     _plugin_id_ = "15290"  # Spigot resource ID
 
-    .....
-
+    
     def configure(parent_folder, config_options={}, **kwargs):
-        ...
+        #TODO: Write your code to configure plugins here.
+        pass
  ```
 
 The plugin_versions is a list of all the versions (of the plugin) that this script can configure for.
@@ -110,6 +115,3 @@ a variable amount of keyword arguments.
 
 In the above example Commons depends on the config_type kwarg, to determine what kind of configuration to use:
 Xml or Yml, as it support both.
-
-In future versions of the resolver, there will likely be support for pulling plugins of a private URL, such as
-a Jenkins build server, ftp host, direct link, so forth; Though that can be tackled when the time comes.

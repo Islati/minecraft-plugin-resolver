@@ -1,4 +1,5 @@
-#Minecraft Plugin Resolver 🧩
+Minecraft Plugin Resolver 🧩
+===
 
 Download & Configure plugins to automate your Minecraft server deployment 🔧
 

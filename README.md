@@ -16,7 +16,7 @@ $ python -m mcresolver --generate/-g <config-file> --plugin <name>
 *Download & Configure plugins automatically 🔧*
 An example of this is presented below, for the Bukkit plugin 'Vault', the economy API.
 
-###Configuration example
+### Configuration example
 ```yaml
 
     Bukkit:
